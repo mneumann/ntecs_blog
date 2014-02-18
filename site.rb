@@ -7,11 +7,12 @@ require 'tilt/erb'
 require 'fileutils'
 
 class Site
-  attr_accessor :title, :contentdir, :staticdir, :outdir
+  attr_accessor :title, :contentdir, :layoutsdir, :staticdir, :outdir
 
-  def initialize(title, contentdir, staticdir, outdir)
+  def initialize(title, contentdir, layoutsdir, staticdir, outdir)
     @title = title
     @contentdir = File.absolute_path(contentdir)
+    @layoutsdir = File.absolute_path(layoutsdir)
     @staticdir = File.absolute_path(staticdir)
     @outdir = File.absolute_path(outdir)
   end
@@ -56,11 +57,7 @@ class Document
     @content || raise
   end
 
-  def render(site, template)
-    template.render(self, :page => self, :site => site)
-  end
-
-  private def permalink_ary
+  def permalink_ary
     dir = File.dirname(@relpath)
     base = File.basename(@relpath)
     ext = File.extname(base)
@@ -126,8 +123,26 @@ class Document
   end
 end
 
+class Generator
+  def initialize(site)
+    @site = site
+    @templates = {}
+    Dir.chdir(@site.layoutsdir) do 
+      Dir["**/*.html.erb"].each {|f|
+        @templates[f[0, f.size - ".html.erb".size]] = Tilt::ERBTemplate.new(f)
+      }
+    end
+  end
+
+  def render(template_name, hash={})
+    hash[:site] = @site
+    t = @templates[template_name] || raise("Template #{template_name} not found")
+    t.render(self, hash)
+  end
+end
+
 if __FILE__ == $0
-    site = Site.new('NTECS Blog', 'content', 'static', '_site')
+    site = Site.new('NTECS Blog', 'content', 'layouts', 'static', '_site')
 
     Dir.chdir(site.staticdir) {
       # XXX: reject certain .ext
@@ -141,17 +156,15 @@ if __FILE__ == $0
       Document.parse(site, relpath)
     }
 
-    single_template = Tilt::ERBTemplate.new('layouts/post/single.html.erb')
-    index_template = Tilt::ERBTemplate.new('layouts/indexes/post.html.erb')
-    page_template = Tilt::ERBTemplate.new('layouts/post/index.html.erb')
+    gen = Generator.new(site)
 
     documents.each do |doc|
       write_file(File.join(site.outdir, doc.outrelpath),
-                 doc.render(site, single_template))
+                 gen.render('post/single', :page => doc))
     end
 
     write_file(File.join(site.outdir, "index.html"),
-               index_template.render(self, :pages => documents, :site => site, :template => page_template))
+               gen.render('indexes/post', :pages => documents))
 
     if ARGV.shift == 'serve'
       require 'webrick'
