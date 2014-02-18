@@ -1,0 +1,9 @@
+<html>
+<body>
+<h1><%= site.title %></h1>
+
+<% pages.sort_by{|page| page.date}.reverse_each do |page| %>
+  <p><%= template.render(self, :site => site, :page => page) %></p>
+<% end %>
+</body>
+</html>
