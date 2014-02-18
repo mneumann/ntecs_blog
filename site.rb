@@ -7,10 +7,13 @@ require 'tilt/erb'
 require 'fileutils'
 
 class Site
-  attr_accessor :title, :contentdir, :outdir
+  attr_accessor :title, :contentdir, :staticdir, :outdir
 
-  def initialize(title, contentdir, outdir)
-    @title, @contentdir, @outdir = title, contentdir, outdir
+  def initialize(title, contentdir, staticdir, outdir)
+    @title = title
+    @contentdir = File.absolute_path(contentdir)
+    @staticdir = File.absolute_path(staticdir)
+    @outdir = File.absolute_path(outdir)
   end
 end
 
@@ -22,6 +25,8 @@ end
 
 def write_file(filename, data)
   raise if File.exist?(filename)
+  FileUtils.mkdir_p(File.dirname(filename))
+  puts "Writing: #{filename}"
   File.write(filename, data)
 end
 
@@ -121,30 +126,35 @@ class Document
   end
 end
 
-site = Site.new('NTECS Blog', 'content', '_site')
+if __FILE__ == $0
+    site = Site.new('NTECS Blog', 'content', 'static', '_site')
 
-documents = Dir.chdir(site.contentdir) { Dir["**/*.md"] }.map {|relpath|
-  Document.parse(site, relpath)
-}
+    Dir.chdir(site.staticdir) {
+      # XXX: reject certain .ext
+      # XXX: Should use Fileutils.cp or something similar
+      Dir["**/*"].select {|f| File.file?(f)}.each {|f|
+        write_file(File.join(site.outdir, f), File.read(f))
+      }
+    }
 
-template = Tilt::ERBTemplate.new('layouts/post/single.html.erb')
+    documents = Dir.chdir(site.contentdir) { Dir["**/*.md"] }.map {|relpath|
+      Document.parse(site, relpath)
+    }
 
-documents.each do |doc|
-  outpath = File.join(site.outdir, doc.outrelpath)
-  FileUtils.mkdir_p(File.join(site.outdir, doc.outreldir))
-  write_file(outpath, doc.render(site, template))
-  puts "Writing: #{outpath}"
-end
+    single_template = Tilt::ERBTemplate.new('layouts/post/single.html.erb')
+    index_template = Tilt::ERBTemplate.new('layouts/indexes/post.html.erb')
+    page_template = Tilt::ERBTemplate.new('layouts/post/index.html.erb')
 
-puts "Generate index"
+    documents.each do |doc|
+      write_file(File.join(site.outdir, doc.outrelpath),
+                 doc.render(site, single_template))
+    end
 
-index = Tilt::ERBTemplate.new('layouts/indexes/post.html.erb')
-page_template = Tilt::ERBTemplate.new('layouts/post/index.html.erb')
+    write_file(File.join(site.outdir, "index.html"),
+               index_template.render(self, :pages => documents, :site => site, :template => page_template))
 
-write_file(File.join(site.outdir, "index.html"),
-           index.render(self, :pages => documents, :site => site, :template => page_template))
-
-if ARGV.shift == 'serve'
-  require 'webrick'
-  WEBrick::HTTPServer.new(:Port => 1313, :DocumentRoot => site.outdir).start
+    if ARGV.shift == 'serve'
+      require 'webrick'
+      WEBrick::HTTPServer.new(:Port => 1313, :DocumentRoot => site.outdir).start
+    end
 end
