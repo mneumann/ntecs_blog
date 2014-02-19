@@ -1,15 +1,5 @@
-<section class="post">
-    <header class="post-header">
-        <h2 class="post-title"><a href="<%= page.permalink %>"><%= page.title %></a></h2>
-
-        <p class="post-meta">
-            By <a href="#" class="post-author">Michael Neumann</a> 
-            under <a class="post-category post-category-design" href="#">CSS</a> <a class="post-category post-category-pure" href="#">Pure</a>
-        </p>
-    </header>
-
-    <div class="post-description">
-        <p><%= page.content %></p>
-    </div>
-</section>
-</div>
+<div class="blog-post">
+  <h1 class="blog-post-title"><a href="<%= page.permalink %>"><%= page.title %></a></h1>
+  <p class="blog-post-meta">January 1, 2014 by <a href="#">Michael Neumann</a></p>
+  <%= page.content %>
+</div><!-- /.blog-post -->
